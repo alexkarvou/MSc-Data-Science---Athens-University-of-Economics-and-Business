@@ -1,0 +1,86 @@
+### the code is taken from here
+http://statr.me/2011/10/large-regression/
+##################################333
+
+set.seed(123);
+n = 5000000;
+p = 5;
+x = matrix(rnorm(n * p), n, p);
+x = cbind(1, x);
+bet = c(2, rep(1, p));
+y = c(x %*% bet) + rnorm(n);
+
+t1 = Sys.time();
+lm(y~x)
+t2 = Sys.time();
+print(t2-t1)
+t1 = Sys.time();
+beta.hat = solve(t(x) %*% x, t(x) %*% y);
+t2 = Sys.time();
+print(t2-t1)
+
+
+gc();
+dat = as.data.frame(x);
+rm(x);
+gc();
+dat$y = y;
+rm(y);
+gc();
+colnames(dat) = c(paste("x", 0:p, sep = ""), "y");
+gc();
+
+t3 = Sys.time();
+# Will also load the DBI package
+library(RSQLite);
+# Using the SQLite database driver
+m = dbDriver("SQLite");
+# The name of the database file
+dbfile = "regression.db";
+# Create a connection to the database
+con = dbConnect(m, dbname = dbfile);
+# Write the data in R into database
+if(dbExistsTable(con, "regdata")) dbRemoveTable(con, "regdata");
+dbWriteTable(con, "regdata", dat, row.names = FALSE);
+# Close the connection
+dbDisconnect(con);
+# Garbage collection
+t4 = Sys.time();
+rm(dat);
+gc();
+
+t5 = Sys.time();
+m = dbDriver("SQLite");
+dbfile = "regression.db";
+con = dbConnect(m, dbname = dbfile);
+# Get variable names
+vars = dbListFields(con, "regdata");
+xnames = vars[-length(vars)];
+yname = vars[length(vars)];
+# Generate SQL statements to compute X'X
+mult = outer(xnames, xnames, paste, sep = "*");
+lower.index = lower.tri(mult, TRUE);
+mult.lower = mult[lower.index];
+sql = paste("sum(", mult.lower, ")", sep = "", collapse = ",");
+sql = sprintf("select %s from regdata", sql);
+txx.lower = unlist(dbGetQuery(con, sql), use.names = FALSE);
+txx = matrix(0, p + 1, p + 1);
+txx[lower.index] = txx.lower;
+txx = t(txx);
+txx[lower.index] = txx.lower;
+# Generate SQL statements to compute X'Y
+sql = paste(xnames, yname, sep = "*");
+sql = paste("sum(", sql, ")", sep = "", collapse = ",");
+sql = sprintf("select %s from regdata", sql);
+txy = unlist(dbGetQuery(con, sql), use.names = FALSE);
+txy = matrix(txy, p + 1);
+# Compute beta hat in R
+beta.hat.DB = solve(txx, txy);
+t6 = Sys.time();
+dbDisconnect(con);
+
+max(abs(beta.hat - beta.hat.DB));
+t2 - t1;
+t4 - t3;
+t6 - t5;
+

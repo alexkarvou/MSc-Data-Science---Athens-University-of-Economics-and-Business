@@ -1,0 +1,50 @@
+setwd("E:\\office PC\\latex\\big data")
+set.seed(100)
+x<-rnorm(1000,100,5)
+y<-rnorm(1000, 5*x+5,35)
+
+pdf("bigreg1.pdf")
+plot(x,y,xlim=c(80,120), ylim=c(350,700))
+abline(lm(y~x),col=2,lwd=2)
+dev.off()
+
+t<-sample(1:1000,100,replace=FALSE)
+
+
+pdf("bigreg2.pdf")
+
+plot(x[t],y[t],xlim=c(80,120), ylim=c(350,700))
+abline(lm(y~x),col=2,lwd=2)
+abline(lm(y[t]~x[t]),col=3, lwd=2)
+
+dev.off()
+
+color<- (1:1000) %in% t
+
+pdf("bigreg3.pdf")
+plot(x,y,col=color+1,pch=color+1, cex=0.6 + color*0.5)
+dev.off()
+
+
+
+kopse<-quantile(x,prob=seq(0.01,0.99,by=0.01))
+xn<-cut(x,kopse)
+
+newx<-tapply(x,xn,mean)
+newy<-tapply(y,xn,mean)
+
+
+pdf("bigreg4.pdf")
+plot(newx,newy,xlim=c(80,120), ylim=c(350,700))
+
+abline(lm(y~x),col=2,lwd=2)
+abline(lm(y[t]~x[t]),col=3, lwd=2)
+
+
+mod<-lm(newy~newx)
+abline(mod, col=4,lty=2)
+
+dev.off()
+
+
+
